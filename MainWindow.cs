@@ -17,18 +17,6 @@ internal sealed class MainWindow : Form
     // The error that starting a process as administrator gives when the user declines the UAC prompt.
     private const int ERROR_CANCELLED = 1223;
 
-    // Windows scales fonts for the display's DPI but not pixel sizes, so every pixel
-    // size in this form goes through S().
-    private static readonly float DpiScale = GetDpiScale();
-
-    private static float GetDpiScale()
-    {
-        using var g = Graphics.FromHwnd(IntPtr.Zero);
-        return g.DpiX / 96f;
-    }
-
-    private static int S(int pixels) => (int)Math.Round(pixels * DpiScale);
-
     private readonly Settings _settings = Settings.Load();
     private readonly System.Windows.Forms.Timer _timer = new() { Interval = UpdateIntervalMs };
 
@@ -36,14 +24,50 @@ internal sealed class MainWindow : Form
     // CPU runs above its base clock, and Task Manager caps it at 100.
     private readonly PerformanceCounter _cpuCounter = new("Processor Information", "% Processor Utility", "_Total");
 
-    private readonly Label _memoryValue = MakeValueLabel();
-    private readonly Label _cpuValue = MakeValueLabel();
+    // Sizes and fonts are set in ApplyScale, not here.
+    private readonly TableLayoutPanel _layout = new()
+    {
+        ColumnCount = 2,
+        AutoSize = true,
+        AutoSizeMode = AutoSizeMode.GrowAndShrink,
+        Dock = DockStyle.Fill,
+    };
+    // The title bar shows the readings, so the app's name goes here.
+    private readonly FlushLabel _heading = new()
+    {
+        Text = "Last Gasp",
+        Dock = DockStyle.Fill,
+        TextAlign = ContentAlignment.MiddleLeft,
+        ForeColor = Palette.PrimaryText,
+        Margin = Padding.Empty,
+    };
+    // Memory leads, on the left; CPU is the smaller figure on the right.
+    private readonly FlushLabel _memoryValue = new()
+    {
+        Dock = DockStyle.Fill, TextAlign = ContentAlignment.BottomLeft, ForeColor = Palette.PrimaryText,
+    };
+    private readonly FlushLabel _cpuValue = new()
+    {
+        Dock = DockStyle.Fill, TextAlign = ContentAlignment.BottomRight, ForeColor = Palette.PrimaryText,
+    };
+    private readonly FlushLabel _memoryCaption = MakeLabel(ContentAlignment.TopLeft, Palette.SecondaryText, "Memory");
+    private readonly FlushLabel _cpuCaption = MakeLabel(ContentAlignment.TopRight, Palette.SecondaryText, "CPU");
+
+    // Separates the readings and the Free button from the settings below.
+    private readonly Label _divider = new() { Dock = DockStyle.Fill, BackColor = Palette.Divider };
+    private readonly FlushLabel _settingsHeading = MakeLabel(ContentAlignment.MiddleLeft, Palette.PrimaryText, "When to warn");
+
     private readonly ThresholdSlider _thresholds = new()
     {
         Dock = DockStyle.Fill,
-        Height = S(66),
-        Margin = new Padding(0, S(12), 0, 0),
         BackColor = Palette.WindowBackground,
+    };
+    private readonly CheckBox _showCpu = new()
+    {
+        Text = "Show CPU %",
+        AutoSize = true,
+        ForeColor = Palette.PrimaryText,
+        Cursor = Cursors.Hand,
     };
     // Ticked means freeing skips the UAC prompt, which is the opposite of Settings.AskForAdmin.
     private readonly CheckBox _skipPrompt = new()
@@ -51,7 +75,6 @@ internal sealed class MainWindow : Form
         Text = "Free memory without a permission prompt",
         AutoSize = true,
         ForeColor = Palette.PrimaryText,
-        Margin = new Padding(0, S(10), 0, 0),
         Cursor = Cursors.Hand,
     };
     private readonly Label _skipPromptNote = new()
@@ -59,10 +82,7 @@ internal sealed class MainWindow : Form
         Text = "Adds a Windows scheduled task that runs Last Gasp's freeing step as administrator. "
             + "Setting it up or removing it asks for permission once.",
         Dock = DockStyle.Fill,
-        Height = S(54),
         ForeColor = Palette.SecondaryText,
-        Font = new Font("Segoe UI", 8.5f),
-        Margin = new Padding(S(18), S(2), 0, 0),
     };
     private bool _revertingCheckBox;
     private readonly RoundedButton _freeButton = new()
@@ -74,9 +94,6 @@ internal sealed class MainWindow : Form
         PressedFill = Palette.AccentPressed,
         DisabledFill = Palette.AccentDisabled,
         ForeColor = Color.White,
-        Font = new Font("Segoe UI Semibold", 10.5f),
-        Height = S(40),
-        Margin = new Padding(0, S(16), 0, 0),
         Cursor = Cursors.Hand,
     };
     private readonly Label _freeStatus = new()
@@ -84,9 +101,6 @@ internal sealed class MainWindow : Form
         Dock = DockStyle.Fill,
         TextAlign = ContentAlignment.MiddleCenter,
         ForeColor = Palette.SecondaryText,
-        Font = new Font("Segoe UI", 9.5f),
-        Height = S(32),
-        Margin = new Padding(0, S(6), 0, 0),
     };
 
     private Icon? _currentIcon;
@@ -101,53 +115,32 @@ internal sealed class MainWindow : Form
         MaximizeBox = false;
         StartPosition = FormStartPosition.CenterScreen;
         BackColor = Palette.WindowBackground;
-        Font = new Font("Segoe UI", 9.5f);
-        Padding = new Padding(S(28), S(16), S(28), S(12));
 
         _thresholds.SetThresholds(_settings.PantingPercent, _settings.GaspingPercent);
         _skipPrompt.Checked = !_settings.AskForAdmin;
+        _showCpu.Checked = _settings.ShowCpu;
+        ShowOrHideCpu();
 
-        var layout = new TableLayoutPanel
+        _layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 0));
+        _layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 0));
+        _layout.Controls.Add(_heading, 0, 0);
+        _layout.SetColumnSpan(_heading, 2);
+        _layout.Controls.Add(_memoryValue, 0, 1);
+        _layout.Controls.Add(_cpuValue, 1, 1);
+        _layout.Controls.Add(_memoryCaption, 0, 2);
+        _layout.Controls.Add(_cpuCaption, 1, 2);
+        // Seeing and acting come first; the settings, changed rarely, come after the divider.
+        int row = 3;
+        foreach (var control in new Control[]
+            { _freeButton, _freeStatus, _divider, _settingsHeading, _thresholds, _showCpu, _skipPrompt, _skipPromptNote })
         {
-            ColumnCount = 2,
-            AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            Dock = DockStyle.Fill,
-        };
-        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, S(170)));
-        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, S(170)));
-        // The title bar shows the readings, so the app's name goes here.
-        var heading = new Label
-        {
-            Text = "Last Gasp",
-            Dock = DockStyle.Fill,
-            Height = S(36),
-            TextAlign = ContentAlignment.MiddleLeft,
-            Font = new Font("Segoe UI Semibold", 15f),
-            ForeColor = Palette.PrimaryText,
-            Margin = Padding.Empty,
-        };
-        layout.Controls.Add(heading, 0, 0);
-        layout.SetColumnSpan(heading, 2);
-        layout.Controls.Add(_memoryValue, 0, 1);
-        layout.Controls.Add(_cpuValue, 1, 1);
-        layout.Controls.Add(MakeCaptionLabel("Memory"), 0, 2);
-        layout.Controls.Add(MakeCaptionLabel("CPU"), 1, 2);
-        layout.Controls.Add(_thresholds, 0, 3);
-        layout.SetColumnSpan(_thresholds, 2);
-        layout.Controls.Add(_skipPrompt, 0, 4);
-        layout.SetColumnSpan(_skipPrompt, 2);
-        layout.Controls.Add(_skipPromptNote, 0, 5);
-        layout.SetColumnSpan(_skipPromptNote, 2);
-        layout.Controls.Add(_freeButton, 0, 6);
-        layout.SetColumnSpan(_freeButton, 2);
-        layout.Controls.Add(_freeStatus, 0, 7);
-        layout.SetColumnSpan(_freeStatus, 2);
-        Controls.Add(layout);
+            _layout.Controls.Add(control, 0, row++);
+            _layout.SetColumnSpan(control, 2);
+        }
+        Controls.Add(_layout);
 
         // Size the window before minimizing it; a size set while minimized is lost.
-        var content = layout.GetPreferredSize(Size.Empty);
-        ClientSize = new Size(content.Width + Padding.Horizontal, content.Height + Padding.Vertical);
+        ApplyScale(DeviceDpi);
         WindowState = FormWindowState.Minimized;
 
         _thresholds.ThresholdsChanged += (_, _) =>
@@ -157,6 +150,14 @@ internal sealed class MainWindow : Form
             ShowReadings();
         };
         _thresholds.ThresholdsCommitted += (_, _) => _settings.Save();
+        _showCpu.CheckedChanged += (_, _) =>
+        {
+            _settings.ShowCpu = _showCpu.Checked;
+            _settings.Save();
+            ShowOrHideCpu();
+            FitWindowToContent();
+            ShowReadings();
+        };
         _skipPrompt.CheckedChanged += async (_, _) =>
         {
             if (!_revertingCheckBox)
@@ -169,29 +170,124 @@ internal sealed class MainWindow : Form
     private bool IsGasping => _memoryPercent >= _settings.GaspingPercent;
     private bool IsPanting => _memoryPercent >= _settings.PantingPercent;
 
-    private static Label MakeValueLabel() => new()
-    {
-        Dock = DockStyle.Fill,
-        Height = S(64),
-        TextAlign = ContentAlignment.MiddleCenter,
-        Font = new Font("Segoe UI Semibold", 28f),
-        ForeColor = Palette.PrimaryText,
-        Margin = Padding.Empty,
-    };
-
-    private static Label MakeCaptionLabel(string text) => new()
+    private static FlushLabel MakeLabel(ContentAlignment align, Color color, string text = "") => new()
     {
         Text = text,
         Dock = DockStyle.Fill,
-        Height = S(28),
-        TextAlign = ContentAlignment.TopCenter,
-        ForeColor = Palette.SecondaryText,
-        Font = new Font("Segoe UI", 10f),
+        TextAlign = align,
+        ForeColor = color,
         Margin = Padding.Empty,
     };
 
+    // The main monitor's scale: 1 at 100%, 1.5 at 150%. The app is system-aware (see
+    // LastGasp.csproj), so it lays out once at this scale and Windows resizes the window
+    // on monitors with a different scale. Per-monitor scaling let WinForms rescale the
+    // fonts but not the spacing, so the two drifted apart.
+    private float _scale = 1f;
+
+    private int S(int pixels) => (int)Math.Round(pixels * _scale);
+
+    // Fonts are sized in pixels, so that text and spacing scale together.
+    private Font UiFont(float points, bool semibold = false) =>
+        new(semibold ? "Segoe UI Semibold" : "Segoe UI", points * 96f / 72f * _scale, GraphicsUnit.Pixel);
+
+    /// <summary>Sets every size and font for a monitor at the given DPI, then sizes the window.</summary>
+    private void ApplyScale(int dpi)
+    {
+        _scale = dpi / 96f;
+        SuspendLayout();
+        _layout.SuspendLayout();
+
+        // Spacing steps of 4: 4 and 8 inside a group, 16 between related rows, 24 between groups.
+        Font = UiFont(9.5f);
+        Padding = new Padding(S(24), S(16), S(24), S(20));
+        _layout.ColumnStyles[0].Width = S(176);
+        _layout.ColumnStyles[1].Width = S(176);
+        int width = S(352);
+
+        _heading.Font = UiFont(11f, semibold: true);
+        _heading.Height = S(24);
+
+        _memoryValue.Font = UiFont(34f, semibold: true);
+        _memoryValue.Height = S(60);
+        _memoryValue.Margin = new Padding(0, S(8), 0, 0);
+        _cpuValue.Font = UiFont(18f, semibold: true);
+        _cpuValue.Height = S(60);
+        _cpuValue.Margin = new Padding(0, S(8), 0, 0);
+        foreach (var caption in new[] { _memoryCaption, _cpuCaption })
+        {
+            caption.Font = UiFont(9.5f);
+            caption.Height = S(20);
+        }
+
+        _freeButton.Font = UiFont(10.5f, semibold: true);
+        _freeButton.CornerRadius = 4 * _scale;
+        _freeButton.Height = S(40);
+        _freeButton.Margin = new Padding(0, S(16), 0, 0);
+
+        _freeStatus.Font = UiFont(9f);
+        _freeStatus.Height = S(20);
+        _freeStatus.Margin = new Padding(0, S(4), 0, 0);
+
+        _divider.Height = Math.Max(1, S(1));
+        _divider.Margin = new Padding(0, S(16), 0, 0);
+
+        _settingsHeading.Font = UiFont(10.5f, semibold: true);
+        _settingsHeading.Height = S(24);
+        _settingsHeading.Margin = new Padding(0, S(20), 0, 0);
+
+        _thresholds.UiScale = _scale;
+        _thresholds.Height = S(66);
+        _thresholds.Margin = new Padding(0, S(8), 0, 0);
+
+        _showCpu.Font = UiFont(9.5f);
+        _showCpu.Margin = new Padding(0, S(16), 0, 0);
+
+        _skipPrompt.Font = UiFont(9.5f);
+        _skipPrompt.Margin = new Padding(0, S(12), 0, 0);
+
+        // Line the note up with the checkbox's text, not its box.
+        int indent = _skipPrompt.GetPreferredSize(Size.Empty).Width
+            - TextRenderer.MeasureText(_skipPrompt.Text, _skipPrompt.Font).Width;
+        _skipPromptNote.Font = UiFont(8.5f);
+        _skipPromptNote.Margin = new Padding(indent, S(2), 0, 0);
+        _skipPromptNote.Height = TextRenderer.MeasureText(_skipPromptNote.Text, _skipPromptNote.Font,
+            new Size(width - indent, int.MaxValue), TextFormatFlags.WordBreak).Height + S(2);
+
+        _layout.ResumeLayout(true);
+        ResumeLayout(true);
+        FitWindowToContent();
+    }
+
+    private void FitWindowToContent()
+    {
+        var content = _layout.GetPreferredSize(Size.Empty);
+        ClientSize = new Size(content.Width + Padding.Horizontal, content.Height + Padding.Vertical);
+    }
+
+    // With CPU off, the title bar already says "Last Gasp", so the window's own heading goes too.
+    private void ShowOrHideCpu()
+    {
+        _heading.Visible = _settings.ShowCpu;
+        _cpuValue.Visible = _settings.ShowCpu;
+        _cpuCaption.Visible = _settings.ShowCpu;
+    }
+
     private const int WM_SYSCOMMAND = 0x0112;
     private const int SC_RESTORE = 0xF120;
+    private const int CS_NOCLOSE = 0x0200;
+
+    // Greys out the close button, so the app can't be closed by accident. Windows can't
+    // show the minimize button without the close button.
+    protected override CreateParams CreateParams
+    {
+        get
+        {
+            var cp = base.CreateParams;
+            cp.ClassStyle |= CS_NOCLOSE;
+            return cp;
+        }
+    }
 
     // Clicking the taskbar button of a minimized window sends SC_RESTORE. When Gasping,
     // free memory instead of opening the window, which could take a long time to appear
@@ -329,7 +425,8 @@ internal sealed class MainWindow : Form
     {
         Text = _freeing ? "Freeing…"
             : IsGasping ? "Free Now"
-            : $"CPU {_cpuPercent}%";
+            : _settings.ShowCpu ? $"CPU {_cpuPercent}%"
+            : "Last Gasp";
         _memoryValue.Text = $"{_memoryPercent}%";
         _memoryValue.ForeColor = IsGasping ? Palette.Gasping
             : IsPanting ? Palette.PantingText

@@ -36,9 +36,33 @@ internal sealed class ThresholdSlider : Control
         Invalidate();
     }
 
-    private float DpiScale => DeviceDpi / 96f;
+    private float _uiScale = 1f;
+
+    /// <summary>The scale of the monitor the window is on: 1 at 100%, 1.5 at 150%. Set by the window.</summary>
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public float UiScale
+    {
+        get => _uiScale;
+        set { _uiScale = value; Invalidate(); }
+    }
+
+    private float DpiScale => _uiScale;
+
+    // Fonts are sized in pixels so that they scale with everything else in the window.
+    private Font LegendFont() => new("Segoe UI", 9.5f * 96f / 72f * DpiScale, GraphicsUnit.Pixel);
+    private Font TickFont() => new("Segoe UI", 8.5f * 96f / 72f * DpiScale, GraphicsUnit.Pixel);
+
     private float HandleRadius => 8 * DpiScale;
-    private float Inset => HandleRadius + 2 * DpiScale;
+
+    // Far enough in from each end for a handle, and for the "50%" and "100%" labels to fit.
+    private float Inset
+    {
+        get
+        {
+            using var font = TickFont();
+            return Math.Max(HandleRadius + 2 * DpiScale, TextRenderer.MeasureText("100%", font).Width / 2f);
+        }
+    }
     private float LegendHeight => 22 * DpiScale;
     private float TrackY => LegendHeight + 14 * DpiScale;
 
@@ -54,9 +78,9 @@ internal sealed class ThresholdSlider : Control
         g.SmoothingMode = SmoothingMode.AntiAlias;
 
         // Legend: Panting on the left, Gasping on the right.
-        using var legendFont = new Font("Segoe UI", 9.5f);
-        DrawLegend(g, legendFont, $"Panting {Panting}%", Palette.Panting, alignRight: false);
-        DrawLegend(g, legendFont, $"Gasping {Gasping}%", Palette.Gasping, alignRight: true);
+        using var legendFont = LegendFont();
+        DrawLegend(g, legendFont, "Panting", Palette.Panting, alignRight: false);
+        DrawLegend(g, legendFont, "Gasping", Palette.Gasping, alignRight: true);
 
         // Track: grey below Panting, yellow from Panting to Gasping, red from Gasping up.
         float thickness = 4 * DpiScale;
@@ -65,7 +89,7 @@ internal sealed class ThresholdSlider : Control
         DrawSegment(g, Gasping, Max, Palette.Gasping, thickness);
 
         // Tick labels every 10%.
-        using var tickFont = new Font("Segoe UI", 8.5f);
+        using var tickFont = TickFont();
         for (int p = Min; p <= Max; p += 10)
         {
             var size = TextRenderer.MeasureText(g, $"{p}%", tickFont);

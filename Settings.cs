@@ -20,6 +20,12 @@ internal sealed class Settings
     /// </summary>
     public bool AskForAdmin { get; set; } = true;
 
+    /// <summary>
+    /// When true, the taskbar label shows CPU use and the window shows the CPU figure and its
+    /// own "Last Gasp" heading. When false, the label and title bar just say "Last Gasp".
+    /// </summary>
+    public bool ShowCpu { get; set; }
+
     private static string FilePath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Last Gasp", "settings.json");
 

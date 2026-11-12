@@ -11,7 +11,7 @@
     <Product>Last Gasp</Product>
     <Company>SIL Global</Company>
     <Copyright>Copyright (c) 2026 SIL Global</Copyright>
-    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <ApplicationHighDpiMode>SystemAware</ApplicationHighDpiMode>
   </PropertyGroup>
 
   <ItemGroup>

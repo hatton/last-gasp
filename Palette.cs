@@ -7,6 +7,7 @@ internal static class Palette
     public static readonly Color PrimaryText = Color.FromArgb(26, 26, 26);
     public static readonly Color SecondaryText = Color.FromArgb(96, 96, 96);
     public static readonly Color Track = Color.FromArgb(200, 200, 200);
+    public static readonly Color Divider = Color.FromArgb(222, 222, 222);
 
     // A warm yellow that stays readable with black text, not a fluorescent one.
     public static readonly Color Panting = Color.FromArgb(230, 176, 30);

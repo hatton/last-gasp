@@ -14,6 +14,8 @@ internal sealed class RoundedButton : Button
     public Color PressedFill { get; set; }
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     public Color DisabledFill { get; set; }
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+    public float CornerRadius { get; set; } = 4f;
 
     private bool _hover;
     private bool _pressed;
@@ -38,7 +40,7 @@ internal sealed class RoundedButton : Button
         g.SmoothingMode = SmoothingMode.AntiAlias;
 
         var fill = !Enabled ? DisabledFill : _pressed ? PressedFill : _hover ? HoverFill : Fill;
-        float radius = 4f * DeviceDpi / 96f;
+        float radius = CornerRadius;
         var rect = new RectangleF(0.5f, 0.5f, Width - 1f, Height - 1f);
         using (var path = new GraphicsPath())
         {
