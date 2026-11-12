@@ -457,6 +457,16 @@ internal sealed class MainWindow : Form
         SetIcon();
     }
 
+    // The taskbar follows Windows' mode (Settings > Personalization > Colors > "Choose your
+    // mode"), not the apps' mode. Read each time the icon is drawn, so a change shows within
+    // one update.
+    private static bool TaskbarIsLight()
+    {
+        using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(
+            @"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize");
+        return key?.GetValue("SystemUsesLightTheme") is int value && value != 0;
+    }
+
     private void SetIcon()
     {
         using var bitmap = new Bitmap(32, 32);
@@ -464,7 +474,8 @@ internal sealed class MainWindow : Form
         {
             g.SmoothingMode = SmoothingMode.AntiAlias;
             g.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
-            var textColor = Color.White;
+            // With no background, the number sits straight on the taskbar, so it must contrast with it.
+            var textColor = TaskbarIsLight() ? Palette.PrimaryText : Color.White;
             if (IsGasping)
             {
                 using var brush = new SolidBrush(Palette.Gasping);
