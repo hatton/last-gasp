@@ -57,6 +57,12 @@ internal sealed class MainWindow : Form
     private readonly Label _divider = new() { Dock = DockStyle.Fill, BackColor = Palette.Divider };
     private readonly FlushLabel _settingsHeading = MakeLabel(ContentAlignment.MiddleLeft, Palette.PrimaryText, "When to warn");
 
+    // The version, small in the bottom-right corner, for anyone who needs to report it.
+    private readonly FlushLabel _version = MakeLabel(ContentAlignment.BottomRight, Palette.SecondaryText, $"v{AppVersion}");
+
+    // The workflow stamps the version into the exe; .NET appends "+<commit>" to it, which isn't wanted here.
+    private static string AppVersion => Application.ProductVersion.Split('+')[0];
+
     private readonly ThresholdSlider _thresholds = new()
     {
         Dock = DockStyle.Fill,
@@ -133,7 +139,7 @@ internal sealed class MainWindow : Form
         // Seeing and acting come first; the settings, changed rarely, come after the divider.
         int row = 3;
         foreach (var control in new Control[]
-            { _freeButton, _freeStatus, _divider, _settingsHeading, _thresholds, _showCpu, _skipPrompt, _skipPromptNote })
+            { _freeButton, _freeStatus, _divider, _settingsHeading, _thresholds, _showCpu, _skipPrompt, _skipPromptNote, _version })
         {
             _layout.Controls.Add(control, 0, row++);
             _layout.SetColumnSpan(control, 2);
@@ -263,6 +269,10 @@ internal sealed class MainWindow : Form
         _skipPromptNote.Margin = new Padding(indent, S(2), 0, 0);
         _skipPromptNote.Height = TextRenderer.MeasureText(_skipPromptNote.Text, _skipPromptNote.Font,
             new Size(width - indent, int.MaxValue), TextFormatFlags.WordBreak).Height + S(2);
+
+        _version.Font = UiFont(8f);
+        _version.Height = S(14);
+        _version.Margin = new Padding(0, S(12), 0, 0);
 
         _layout.ResumeLayout(true);
         ResumeLayout(true);
