@@ -28,7 +28,9 @@ OutputBaseFilename=LastGasp-Setup-{#AppVersion}
 Compression=lzma2
 SolidCompression=yes
 UninstallDisplayIcon={app}\{#AppExe}
-CloseApplications=yes
+; PrepareToInstall below ends a running Last Gasp itself, so Windows' Restart Manager
+; doesn't need to ask.
+CloseApplications=no
 
 [Files]
 Source: "{#PublishDir}\{#AppExe}"; DestDir: "{app}"; Flags: ignoreversion
@@ -42,3 +44,17 @@ Filename: "{app}\{#AppExe}"; Description: "Start {#AppName}"; Flags: nowait post
 
 [UninstallRun]
 Filename: "taskkill.exe"; Parameters: "/f /im {#AppExe}"; Flags: runhidden; RunOnceId: "StopApp"
+
+[Code]
+// Ends any running Last Gasp before the files are copied, so the new exe can replace it.
+// The [Run] entry above starts the new one when setup finishes.
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+var
+  ResultCode: Integer;
+begin
+  Exec(ExpandConstant('{sys}\taskkill.exe'), '/f /im {#AppExe}', '', SW_HIDE,
+    ewWaitUntilTerminated, ResultCode);
+  // taskkill returns once the process is told to end; give Windows a moment to release the file.
+  Sleep(500);
+  Result := '';
+end;
