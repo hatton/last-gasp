@@ -45,13 +45,24 @@ internal sealed class MainWindow : Form
         Margin = new Padding(0, S(12), 0, 0),
         BackColor = Palette.WindowBackground,
     };
-    private readonly CheckBox _askForAdmin = new()
+    // Ticked means freeing skips the UAC prompt, which is the opposite of Settings.AskForAdmin.
+    private readonly CheckBox _skipPrompt = new()
     {
-        Text = "Ask for administrator permission each time",
+        Text = "Free memory without a permission prompt",
         AutoSize = true,
         ForeColor = Palette.PrimaryText,
         Margin = new Padding(0, S(10), 0, 0),
         Cursor = Cursors.Hand,
+    };
+    private readonly Label _skipPromptNote = new()
+    {
+        Text = "Adds a Windows scheduled task that runs Last Gasp's freeing step as administrator. "
+            + "Setting it up or removing it asks for permission once.",
+        Dock = DockStyle.Fill,
+        Height = S(54),
+        ForeColor = Palette.SecondaryText,
+        Font = new Font("Segoe UI", 8.5f),
+        Margin = new Padding(S(18), S(2), 0, 0),
     };
     private bool _revertingCheckBox;
     private readonly RoundedButton _freeButton = new()
@@ -94,7 +105,7 @@ internal sealed class MainWindow : Form
         Padding = new Padding(S(28), S(16), S(28), S(12));
 
         _thresholds.SetThresholds(_settings.PantingPercent, _settings.GaspingPercent);
-        _askForAdmin.Checked = _settings.AskForAdmin;
+        _skipPrompt.Checked = !_settings.AskForAdmin;
 
         var layout = new TableLayoutPanel
         {
@@ -105,17 +116,32 @@ internal sealed class MainWindow : Form
         };
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, S(170)));
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, S(170)));
-        layout.Controls.Add(_memoryValue, 0, 0);
-        layout.Controls.Add(_cpuValue, 1, 0);
-        layout.Controls.Add(MakeCaptionLabel("Memory"), 0, 1);
-        layout.Controls.Add(MakeCaptionLabel("CPU"), 1, 1);
-        layout.Controls.Add(_thresholds, 0, 2);
+        // The title bar shows the readings, so the app's name goes here.
+        var heading = new Label
+        {
+            Text = "Last Gasp",
+            Dock = DockStyle.Fill,
+            Height = S(36),
+            TextAlign = ContentAlignment.MiddleLeft,
+            Font = new Font("Segoe UI Semibold", 15f),
+            ForeColor = Palette.PrimaryText,
+            Margin = Padding.Empty,
+        };
+        layout.Controls.Add(heading, 0, 0);
+        layout.SetColumnSpan(heading, 2);
+        layout.Controls.Add(_memoryValue, 0, 1);
+        layout.Controls.Add(_cpuValue, 1, 1);
+        layout.Controls.Add(MakeCaptionLabel("Memory"), 0, 2);
+        layout.Controls.Add(MakeCaptionLabel("CPU"), 1, 2);
+        layout.Controls.Add(_thresholds, 0, 3);
         layout.SetColumnSpan(_thresholds, 2);
-        layout.Controls.Add(_askForAdmin, 0, 3);
-        layout.SetColumnSpan(_askForAdmin, 2);
-        layout.Controls.Add(_freeButton, 0, 4);
+        layout.Controls.Add(_skipPrompt, 0, 4);
+        layout.SetColumnSpan(_skipPrompt, 2);
+        layout.Controls.Add(_skipPromptNote, 0, 5);
+        layout.SetColumnSpan(_skipPromptNote, 2);
+        layout.Controls.Add(_freeButton, 0, 6);
         layout.SetColumnSpan(_freeButton, 2);
-        layout.Controls.Add(_freeStatus, 0, 5);
+        layout.Controls.Add(_freeStatus, 0, 7);
         layout.SetColumnSpan(_freeStatus, 2);
         Controls.Add(layout);
 
@@ -131,10 +157,10 @@ internal sealed class MainWindow : Form
             ShowReadings();
         };
         _thresholds.ThresholdsCommitted += (_, _) => _settings.Save();
-        _askForAdmin.CheckedChanged += async (_, _) =>
+        _skipPrompt.CheckedChanged += async (_, _) =>
         {
             if (!_revertingCheckBox)
-                await SetAskForAdminAsync(_askForAdmin.Checked);
+                await SetAskForAdminAsync(!_skipPrompt.Checked);
         };
         _freeButton.Click += async (_, _) => await FreeMemoryAsync();
         _timer.Tick += (_, _) => TakeReadings();
@@ -244,7 +270,7 @@ internal sealed class MainWindow : Form
     /// </summary>
     private async Task SetAskForAdminAsync(bool ask)
     {
-        _askForAdmin.Enabled = false;
+        _skipPrompt.Enabled = false;
         try
         {
             string user = System.Security.Principal.WindowsIdentity.GetCurrent().Name;
@@ -262,12 +288,12 @@ internal sealed class MainWindow : Form
                 ? "Cancelled"
                 : $"Could not change this: {ex.Message}";
             _revertingCheckBox = true;
-            _askForAdmin.Checked = !ask;
+            _skipPrompt.Checked = ask;
             _revertingCheckBox = false;
         }
         finally
         {
-            _askForAdmin.Enabled = true;
+            _skipPrompt.Enabled = true;
         }
     }
 
