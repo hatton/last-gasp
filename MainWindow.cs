@@ -110,7 +110,6 @@ internal sealed class MainWindow : Form
         ForeColor = Palette.SecondaryText,
     };
 
-    private Icon? _currentIcon;
     private int _memoryPercent;
     private int _cpuPercent;
     private bool _freeing;
@@ -477,9 +476,33 @@ internal sealed class MainWindow : Form
         return key?.GetValue("SystemUsesLightTheme") is int value && value != 0;
     }
 
+    private IntPtr _bigIcon;
+    private IntPtr _smallIcon;
+
+    // Windows asks for the big icon on some taskbars and the small one on others (a taskbar
+    // on a monitor at a different scale uses the small one). Both are drawn here at the sizes
+    // Windows expects and set directly; a small icon derived from a single 32-pixel icon came
+    // out as Windows' generic window icon.
     private void SetIcon()
     {
-        using var bitmap = new Bitmap(32, 32);
+        if (!IsHandleCreated)
+            return;
+        var oldBig = _bigIcon;
+        var oldSmall = _smallIcon;
+        _bigIcon = DrawIcon(GetSystemMetrics(SM_CXICON));
+        _smallIcon = DrawIcon(GetSystemMetrics(SM_CXSMICON));
+        SendMessage(Handle, WM_SETICON, (IntPtr)ICON_BIG, _bigIcon);
+        SendMessage(Handle, WM_SETICON, (IntPtr)ICON_SMALL, _smallIcon);
+        if (oldBig != IntPtr.Zero)
+            DestroyIcon(oldBig);
+        if (oldSmall != IntPtr.Zero)
+            DestroyIcon(oldSmall);
+    }
+
+    /// <returns>A new icon handle, which the caller must destroy.</returns>
+    private IntPtr DrawIcon(int size)
+    {
+        using var bitmap = new Bitmap(size, size);
         using (var g = Graphics.FromImage(bitmap))
         {
             g.SmoothingMode = SmoothingMode.AntiAlias;
@@ -489,32 +512,23 @@ internal sealed class MainWindow : Form
             if (IsGasping)
             {
                 using var brush = new SolidBrush(Palette.Gasping);
-                g.FillRectangle(brush, 0, 0, 32, 32);
+                g.FillRectangle(brush, 0, 0, size, size);
             }
             else if (IsPanting)
             {
                 using var brush = new SolidBrush(Palette.Panting);
-                g.FillRectangle(brush, 0, 0, 32, 32);
+                g.FillRectangle(brush, 0, 0, size, size);
                 textColor = Color.Black;
             }
 
             string text = _memoryPercent.ToString();
-            float size = text.Length >= 3 ? 12f : 17f;
-            using var font = new Font("Segoe UI", size, FontStyle.Bold, GraphicsUnit.Pixel);
+            float fontSize = size * (text.Length >= 3 ? 12f : 17f) / 32f;
+            using var font = new Font("Segoe UI", fontSize, FontStyle.Bold, GraphicsUnit.Pixel);
             using var textBrush = new SolidBrush(textColor);
             var format = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
-            g.DrawString(text, font, textBrush, new RectangleF(0, 0, 32, 32), format);
+            g.DrawString(text, font, textBrush, new RectangleF(0, 0, size, size), format);
         }
-
-        var newIcon = Icon.FromHandle(bitmap.GetHicon());
-        Icon = newIcon;
-
-        if (_currentIcon != null)
-        {
-            DestroyIcon(_currentIcon.Handle);
-            _currentIcon.Dispose();
-        }
-        _currentIcon = newIcon;
+        return bitmap.GetHicon();
     }
 
     protected override void Dispose(bool disposing)
@@ -523,14 +537,25 @@ internal sealed class MainWindow : Form
         {
             _timer.Dispose();
             _cpuCounter.Dispose();
-            if (_currentIcon != null)
-            {
-                DestroyIcon(_currentIcon.Handle);
-                _currentIcon.Dispose();
-            }
         }
+        if (_bigIcon != IntPtr.Zero)
+            DestroyIcon(_bigIcon);
+        if (_smallIcon != IntPtr.Zero)
+            DestroyIcon(_smallIcon);
         base.Dispose(disposing);
     }
+
+    private const int WM_SETICON = 0x0080;
+    private const int ICON_SMALL = 0;
+    private const int ICON_BIG = 1;
+    private const int SM_CXICON = 11;
+    private const int SM_CXSMICON = 49;
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
+
+    [DllImport("user32.dll")]
+    private static extern int GetSystemMetrics(int index);
 
     [StructLayout(LayoutKind.Sequential)]
     private struct MemoryStatusEx
