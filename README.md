@@ -8,9 +8,9 @@ The number on the icon is the percentage of memory in use. The label next to it 
 
 | Taskbar button | What it means |
 |---|---|
-| ![Last Gasp's taskbar button with a plain icon showing 63 and the label "CPU 98%"](docs/images/taskbar-normal.png) | **Normal.** Memory use is below your Panting level. |
-| ![Last Gasp's taskbar button with a yellow icon showing 64 and the label "CPU 56%"](docs/images/taskbar-panting.png) | **Panting.** Memory use has reached your Panting level, so the icon turns yellow. |
-| ![Last Gasp's taskbar button with a red icon showing 64 and the label "Free Now"](docs/images/taskbar-gasping.png) | **Gasping.** Memory use has reached your Gasping level. The icon turns red and the label reads "Free Now". Click the button to free memory straight away, without opening a window. |
+| ![Last Gasp's taskbar button with a plain icon showing 66 and the label "CPU 48%"](docs/images/taskbar-normal.png) | **Normal.** Memory use is below your Panting level. |
+| ![Last Gasp's taskbar button with a yellow icon showing 76 and the label "CPU 48%"](docs/images/taskbar-panting.png) | **Panting.** Memory use has reached your Panting level, so the icon turns yellow. |
+| ![Last Gasp's taskbar button with a red icon showing 85 and the label "Free Now"](docs/images/taskbar-gasping.png) | **Gasping.** Memory use has reached your Gasping level. The icon turns red and the label reads "Free Now". Click the button to free memory straight away, without opening a window. |
 
 To see the label, Windows has to show labels on taskbar buttons. In Windows 11, open **Settings**, go to **Personalization > Taskbar > Taskbar behaviors**, and set **Combine taskbar buttons and hide labels** to **Never**. Without labels you still see the icon.
 
