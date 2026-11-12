@@ -1,0 +1,35 @@
+name: Build installer
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  installer:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      # Uses the machine's .NET 10 Desktop Runtime. On a machine without it, LastGasp.exe
+      # tells the user and offers the download page.
+      - name: Publish
+        run: >
+          dotnet publish LastGasp.csproj -c Release -r win-x64 -p:SelfContained=false
+          -p:PublishSingleFile=true -o publish
+
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+
+      - name: Build installer
+        run: >
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          /DAppVersion=1.0.${{ github.run_number }} /DPublishDir=..\publish installer\LastGasp.iss
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LastGasp-Setup-1.0.${{ github.run_number }}
+          path: output/*.exe

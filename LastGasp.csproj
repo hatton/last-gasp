@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>LastGasp</AssemblyName>
+    <RootNamespace>LastGasp</RootNamespace>
+    <Product>Last Gasp</Product>
+    <Company>SIL Global</Company>
+    <Copyright>Copyright (c) 2026 SIL Global</Copyright>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.Diagnostics.PerformanceCounter" Version="11.0.0" />
+  </ItemGroup>
+
+</Project>
