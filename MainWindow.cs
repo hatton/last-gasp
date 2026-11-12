@@ -74,6 +74,7 @@ internal sealed class MainWindow : Form
     {
         Text = "Free memory without a permission prompt",
         AutoSize = true,
+        TextImageRelation = TextImageRelation.TextBeforeImage,
         ForeColor = Palette.PrimaryText,
         Cursor = Cursors.Hand,
     };
@@ -237,7 +238,7 @@ internal sealed class MainWindow : Form
         _settingsHeading.Margin = new Padding(0, S(20), 0, 0);
 
         _thresholds.UiScale = _scale;
-        _thresholds.Height = S(66);
+        _thresholds.Height = S(86);
         _thresholds.Margin = new Padding(0, S(8), 0, 0);
 
         _showCpu.Font = UiFont(9.5f);
@@ -246,9 +247,18 @@ internal sealed class MainWindow : Form
         _skipPrompt.Font = UiFont(9.5f);
         _skipPrompt.Margin = new Padding(0, S(12), 0, 0);
 
-        // Line the note up with the checkbox's text, not its box.
+        // Line the note up with the checkbox's text, not its box. Measured before the shield
+        // is added after the text, so that the shield's width isn't counted.
+        _skipPrompt.Image = null;
         int indent = _skipPrompt.GetPreferredSize(Size.Empty).Width
             - TextRenderer.MeasureText(_skipPrompt.Text, _skipPrompt.Font).Width;
+
+        // The UAC shield marks the controls that ask for administrator permission.
+        _shield?.Dispose();
+        using (var shieldIcon = SystemIcons.GetStockIcon(StockIconId.Shield, S(16)))
+            _shield = new Bitmap(shieldIcon.ToBitmap(), S(16), S(16));
+        _skipPrompt.Image = _shield;
+        ShowShieldOnFreeButton();
         _skipPromptNote.Font = UiFont(8.5f);
         _skipPromptNote.Margin = new Padding(indent, S(2), 0, 0);
         _skipPromptNote.Height = TextRenderer.MeasureText(_skipPromptNote.Text, _skipPromptNote.Font,
@@ -257,6 +267,15 @@ internal sealed class MainWindow : Form
         _layout.ResumeLayout(true);
         ResumeLayout(true);
         FitWindowToContent();
+    }
+
+    private Bitmap? _shield;
+
+    // Freeing asks for permission unless the scheduled task is set up.
+    private void ShowShieldOnFreeButton()
+    {
+        _freeButton.Image = _settings.AskForAdmin ? _shield : null;
+        _freeButton.Invalidate();
     }
 
     private void FitWindowToContent()
@@ -308,7 +327,8 @@ internal sealed class MainWindow : Form
             return;
         _freeing = true;
         _freeButton.Enabled = false;
-        _freeStatus.Text = "Freeing memory…";
+        _freeButton.Text = "Freeing…";
+        _freeStatus.Text = "";
         Text = "Freeing…";
         try
         {
@@ -341,6 +361,7 @@ internal sealed class MainWindow : Form
         finally
         {
             _freeing = false;
+            _freeButton.Text = "Free Memory Now";
             _freeButton.Enabled = true;
             ShowReadings();
         }
@@ -376,7 +397,8 @@ internal sealed class MainWindow : Form
 
             _settings.AskForAdmin = ask;
             _settings.Save();
-            _freeStatus.Text = ask ? "Freeing will ask for permission each time" : "Freeing will no longer ask for permission";
+            ShowShieldOnFreeButton();
+            _freeStatus.Text = "";
         }
         catch (Exception ex)
         {

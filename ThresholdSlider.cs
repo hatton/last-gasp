@@ -64,7 +64,10 @@ internal sealed class ThresholdSlider : Control
         }
     }
     private float LegendHeight => 22 * DpiScale;
-    private float TrackY => LegendHeight + 14 * DpiScale;
+    private float ValueRowHeight => 18 * DpiScale;
+    private float TrackY => LegendHeight + 6 * DpiScale + ValueRowHeight + HandleRadius + 2 * DpiScale;
+
+    private Font ValueFont() => new("Segoe UI Semibold", 8.5f * 96f / 72f * DpiScale, GraphicsUnit.Pixel);
 
     private float XFor(int percent) => Inset + (Width - 2 * Inset) * (percent - Min) / (Max - Min);
 
@@ -81,6 +84,8 @@ internal sealed class ThresholdSlider : Control
         using var legendFont = LegendFont();
         DrawLegend(g, legendFont, "Panting", Palette.Panting, alignRight: false);
         DrawLegend(g, legendFont, "Gasping", Palette.Gasping, alignRight: true);
+
+        DrawValues(g);
 
         // Track: grey below Panting, yellow from Panting to Gasping, red from Gasping up.
         float thickness = 4 * DpiScale;
@@ -99,6 +104,45 @@ internal sealed class ThresholdSlider : Control
 
         DrawHandle(g, Panting, Palette.Panting);
         DrawHandle(g, Gasping, Palette.Gasping);
+    }
+
+    // Each handle's value, centred above it. When the handles are close, the two values are
+    // pushed apart so they touch instead of overlapping, and both stay inside the control.
+    private void DrawValues(Graphics g)
+    {
+        using var font = ValueFont();
+        var flags = TextFormatFlags.NoPadding | TextFormatFlags.SingleLine;
+        string pantingText = $"{Panting}%", gaspingText = $"{Gasping}%";
+        int pantingWidth = TextRenderer.MeasureText(g, pantingText, font, Size.Empty, flags).Width;
+        int gaspingWidth = TextRenderer.MeasureText(g, gaspingText, font, Size.Empty, flags).Width;
+        float gap = 4 * DpiScale;
+
+        float pantingLeft = XFor(Panting) - pantingWidth / 2f;
+        float gaspingLeft = XFor(Gasping) - gaspingWidth / 2f;
+        float overlap = pantingLeft + pantingWidth + gap - gaspingLeft;
+        if (overlap > 0)
+        {
+            pantingLeft -= overlap / 2;
+            gaspingLeft += overlap / 2;
+        }
+        // Keep both inside the control, moving the other along if one hits an edge.
+        if (pantingLeft < 0)
+        {
+            gaspingLeft = Math.Max(gaspingLeft, pantingWidth + gap);
+            pantingLeft = 0;
+        }
+        if (gaspingLeft + gaspingWidth > Width)
+        {
+            gaspingLeft = Width - gaspingWidth;
+            pantingLeft = Math.Min(pantingLeft, gaspingLeft - gap - pantingWidth);
+        }
+
+        int top = (int)(LegendHeight + 6 * DpiScale);
+        int height = (int)ValueRowHeight;
+        TextRenderer.DrawText(g, pantingText, font, new Rectangle((int)pantingLeft, top, pantingWidth, height),
+            Palette.PantingText, flags | TextFormatFlags.Bottom);
+        TextRenderer.DrawText(g, gaspingText, font, new Rectangle((int)gaspingLeft, top, gaspingWidth, height),
+            Palette.Gasping, flags | TextFormatFlags.Bottom);
     }
 
     private void DrawLegend(Graphics g, Font font, string text, Color color, bool alignRight)

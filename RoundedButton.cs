@@ -54,7 +54,15 @@ internal sealed class RoundedButton : Button
             g.FillPath(brush, path);
         }
 
-        TextRenderer.DrawText(g, Text, Font, ClientRectangle, ForeColor,
-            TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine);
+        // The image, if any, sits before the text, and the two are centred together.
+        var flags = TextFormatFlags.NoPadding | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine;
+        int textWidth = TextRenderer.MeasureText(g, Text, Font, Size, flags).Width;
+        int gap = Image == null ? 0 : Image.Width / 2;
+        int imageWidth = Image?.Width ?? 0;
+        int left = (Width - imageWidth - gap - textWidth) / 2;
+        if (Image != null)
+            g.DrawImage(Image, left, (Height - Image.Height) / 2, Image.Width, Image.Height);
+        TextRenderer.DrawText(g, Text, Font,
+            new Rectangle(left + imageWidth + gap, 0, textWidth, Height), ForeColor, flags);
     }
 }
