@@ -1,16 +1,25 @@
 name: Build installer
 
+# Every push builds the installer. A push to main also replaces the draft release with a
+# new one that has this installer attached; publishing the draft creates its tag.
+
 on:
   push:
   workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  VERSION: 1.0.${{ github.run_number }}
 
 jobs:
   installer:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: 10.0.x
 
@@ -19,7 +28,7 @@ jobs:
       - name: Publish
         run: >
           dotnet publish LastGasp.csproj -c Release -r win-x64 -p:SelfContained=false
-          -p:PublishSingleFile=true -o publish
+          -p:PublishSingleFile=true -p:Version=${{ env.VERSION }} -o publish
 
       - name: Install Inno Setup
         run: choco install innosetup --no-progress -y
@@ -27,9 +36,21 @@ jobs:
       - name: Build installer
         run: >
           & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
-          /DAppVersion=1.0.${{ github.run_number }} /DPublishDir=..\publish installer\LastGasp.iss
+          /DAppVersion=${{ env.VERSION }} /DPublishDir=..\publish installer\LastGasp.iss
 
-      - uses: actions/upload-artifact@v4
+      - name: Replace the draft release
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $drafts = gh release list --json tagName,isDraft --jq '.[] | select(.isDraft) | .tagName'
+          foreach ($tag in $drafts) { gh release delete $tag --yes }
+          gh release create "v${{ env.VERSION }}" "output\LastGasp-Setup-${{ env.VERSION }}.exe" `
+            --draft --target "${{ github.sha }}" --title "Last Gasp ${{ env.VERSION }}" --generate-notes
+
+      - name: Keep the installer from other branches
+        if: github.ref != 'refs/heads/main'
+        uses: actions/upload-artifact@v5
         with:
-          name: LastGasp-Setup-1.0.${{ github.run_number }}
+          name: LastGasp-Setup-${{ env.VERSION }}
           path: output/*.exe
